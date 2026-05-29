@@ -37,7 +37,10 @@ Before starting, verify the toolchain:
    with word-level timestamps. Never hand-estimate SRT timing — it will drift.
 4. **Title card opens every video.** The first 3-5 seconds should display the idiom
    name (large, styled) + pinyin + "成语故事" label. Users need to know what they're
-   watching immediately.
+   watching immediately. **CRITICAL: Title card background MUST NOT be black** —
+   use the same light/paper tone as the scene illustrations (e.g. `#F5F0E8` for
+   cartoon style, `#F0EDE4` for ink-wash style). The title card should feel like
+   page one of the visual story, not a separate dark screen.
 5. **Fallback gracefully.** When the video API hits its daily quota, switch to
    ImageGen → static images → FFmpeg Ken Burns zoom effect. The pipeline must
    not break.
@@ -210,7 +213,7 @@ Save the narration text to `script.txt` first. The output `subtitles.vtt` contai
 The VTT from edge-tts already has correct timestamps. Apply styling via FFmpeg force_style:
 
 ```
-FontName=STKaiti,FontSize=30
+FontName=Microsoft YaHei,FontSize=28
 PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,Outline=3
 Alignment=2 (bottom-center), MarginV=50
 ```
@@ -221,31 +224,32 @@ The first thing viewers see must be the idiom name. Create a 3-5 second title ca
 with FFmpeg drawtext before compositing the full video.
 
 ```bash
-ffmpeg -y -f lavfi -i "color=c=0x0a0a0f:s=1920x1080:d=4:r=24" \
-  -f lavfi -i "anullsrc=channel_layout=stereo:sample_rate=44100" \
-  -vf "drawtext=fontfile='C\\:/Windows/Fonts/simkai.ttf':\
+ffmpeg -y -f lavfi -i "color=c=0xF5F0E8:s=1920x1080:d=4:r=24" \
+  -i "title_voice.mp3" \
+  -vf "drawtext=fontfile='C\\:/Windows/Fonts/msyh.ttc':\
 text='<IDIOM CHARS WITH SPACES>':\
-fontsize=120:fontcolor=0xD4B87A:\
-x=(w-text_w)/2:y=(h-text_h)/2-60:\
-shadowcolor=0x000000:shadowx=3:shadowy=3,\
-drawtext=fontfile='C\\:/Windows/Fonts/simfang.ttf':\
+fontsize=120:fontcolor=0x4A2F1A:\
+x=(w-text_w)/2:y=(h-text_h)/2-70,\
+drawtext=fontfile='C\\:/Windows/Fonts/msyh.ttc':\
 text='<PINYIN WITH SPACES>':\
 fontsize=36:fontcolor=0x8A8070:\
-x=(w-text_w)/2:y=(h-text_h)/2+80,\
-drawtext=fontfile='C\\:/Windows/Fonts/simkai.ttf':\
-text='成语故事':\
-fontsize=32:fontcolor=0x5A5040:\
-x=(w-text_w)/2:y=(h-text_h)/2+140" \
+x=(w-text_w)/2:y=(h-text_h)/2+70,\
+drawtext=fontfile='C\\:/Windows/Fonts/msyh.ttc':\
+text='成 语 故 事':\
+fontsize=28:fontcolor=0xA09080:\
+x=(w-text_w)/2:y=(h-text_h)/2+130" \
   -c:v libx264 -preset fast -crf 18 -pix_fmt yuv420p \
   -c:a aac -b:a 128k -shortest title_card.mp4
 ```
 
 Style notes:
-- Background: `0x0a0a0f` (dark, matches ink-wash aesthetic)
-- Title: `simkai.ttf` (楷体), 120px, gold `0xD4B87A`, with shadow
-- Pinyin: `simfang.ttf` (仿宋), 36px, dim `0x8A8070`
-- Label: `simkai.ttf`, 32px, dark gold `0x5A5040`
-- Duration: 4s (or adjust to match the idiom's character count)
+- Background: `0xF5F0E8` (paper color / 纸色，与淡色插画风格统一)
+- Font: **`msyh.ttc` (微软雅黑)** — simkai/simfang may render Chinese as boxes on some FFmpeg builds; msyh is most reliable
+- Title: 120px, dark brown `0x4A2F1A`, centered
+- Pinyin: 36px, dim `0x8A8070`
+- Label: 28px, muted `0xA09080`
+- Duration: 4s
+- **Important**: Generate `title_voice.mp3` first via edge-tts with just the idiom name, then use it as audio input for the title card
 
 Then prepend this title card when concatenating scene clips (Step 6).
 
@@ -329,6 +333,7 @@ Output is a single MP4 file (1080p, ~60-90MB). Format is compatible with:
 | ImageGen size parameter ignored | ImageGen generates at 1280x720 regardless of size="1920x1080". Use FFmpeg zoompan to scale up to 1080p. |
 | FFmpeg concat with mixed codec profiles | concat `-c copy` fails silently when segments use different codec profiles (e.g. High vs Baseline). Solution: encode all clips to .ts with same settings, or do a two-pass approach — first concat video-only segments (all .ts, no audio), then add audio+subtitles in a second ffmpeg pass. |
 | Audio sampling rate mismatch | narration.mp3 via edge-tts is 24000Hz mono. When combining with 44100Hz title card audio, ffmpeg may produce crackling. Solution: keep all intermediate clips video-only (`-an`), add narration as sole audio source in final step. |
+| Chinese font rendering (boxes) | `simkai.ttf` and `simfang.ttf` may render Chinese characters as empty boxes (□□□□) on some FFmpeg/Windows builds. **Always use `msyh.ttc` (微软雅黑)** for both title card drawtext and subtitle force_style — it is the most reliable Chinese font across all Windows configurations. |
 
 ## Assets
 

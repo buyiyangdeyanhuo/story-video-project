@@ -21,3 +21,6 @@ Desktop.ini
 
 # WorkBuddy session data (not the skill/memory)
 .composer/
+
+# Logs
+debug.log
